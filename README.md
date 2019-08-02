@@ -1,2 +1,2 @@
-# JD-Temp-Repository
+# JDTempRepository
 temporary warehouse for jd
