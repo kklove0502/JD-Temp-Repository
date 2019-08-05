@@ -1,0 +1,133 @@
+# -*- coding: utf-8 -*-
+
+import requests
+import traceback
+import os
+
+env = os.getenv('env', 'prd')
+gw_env = os.getenv('gw_env', 'prd')
+
+if env == 'prd' or (env == 'local' and gw_env == 'prd'):
+    server = ('10.22.220.82', 80, 'api.wmcloud.com', 443)
+    URL_PREFIX = 'https://{}.wmcloud.com'
+    EXT_MFHANDLER_HOST = 'https://gw.wmcloud.com/mercury_ops'
+    PING_URL = "https://{}.wmcloud.com/mercury_community/w/ping"
+else:
+    server = ('10.22.220.42', 80, 'api.wmcloud-stg.com', 443)
+    URL_PREFIX = 'https://{}.wmcloud-stg.com'
+    EXT_MFHANDLER_HOST = 'https://gw.wmcloud-stg.com/mercury_ops'
+    # EXT_MFHANDLER_HOST = 'http://10.20.233.4:8090'
+    PING_URL = 'https://{}.wmcloud-stg.com/mercury_community/w/ping'
+
+
+FOLDERS =  []
+LOCAL_PATH = './'
+
+### URL Config
+URL = {}
+URL_TEMPLATE = {}
+
+### NOTEBOOK, DATA
+update = URL_TEMPLATE.update(
+    {'AUTHORIZE_URL': "/usermaster/authenticate/v1.json", 
+    'TOKEN_URL': "/usermaster/oauth2/token.json?lang=zh",
+     'MERCURY_URL': '/mercury/api/databooks', 
+     'UQER_AUTH_URL': '/cloud/identity/uqer.json',
+     'DATA_URL': '/mercury/databooks',
+      'NOTEBOOK_URL': '/mercury/api/notebooks?recursion',
+     'NOTEBOOK_DELETE': '/mercury/api/notebooks/{}?force=1',
+      'DOWN_NOTEBOOK_URL': '/mercury/files',
+     'SDK_URL': "/mercury_community", })
+
+SDK_STATIC_URL = 'http://uqer.io/pro/download/sdk/uqer_sdk.zip'
+
+
+### Live Trading
+URL_TEMPLATE.update({
+    'Live_Trading_URL' : "/mercury_trade/v2/strategy",
+    'Live_Order_URL' : "/mercury_trade/v2/strategy/{}/order",
+    'Live_Position_URL' : "/mercury_trade/v2/strategy/{}/position",
+    'Live_Curve_URL' : "/mercury_trade/v2/strategy/{}/indicator_curve",
+})
+
+### User factor
+URL_TEMPLATE.update({
+    'Create_Factor': '/mercury_trade/customfactor',
+    'Upload_FactorData': '/mercury_trade/customfactordata',
+    'Get_Factor': '/mercury_trade/customfactor'
+})
+
+def check_gateway(gw=None):
+    
+    GATEWAY = ['gw', 'gw01', 'gw02', 'gw03']
+
+    global URL, URL_TEMPLATE, URL_PREFIX, PING_URL
+    ### 检查是否自定义网关
+    if gw:
+        good_gw = gw
+    else:
+        ### 网关检测
+        good_gw = 'gw'
+        for _gw in GATEWAY:
+            _url = PING_URL.format(_gw)
+            try:
+                r = requests.get(_url)
+                if r.ok:
+                    good_gw = _gw
+                    break
+            except:
+                print ('网关测试过程发生错误，错误信息如下：')
+                traceback.print_exc()
+                continue
+
+    URL_PREFIX = URL_PREFIX.format(good_gw)
+
+    ### 配置 URL
+    for k,v in URL_TEMPLATE.items():
+        URL[k] = URL_PREFIX + v
+
+    return URL
+
+
+URL = check_gateway()
+
+
+def get_url(url_name):
+    """利用此函数实现动态 url
+    """
+    global URL
+    url = URL.get(url_name, '')
+
+    if not url:
+        print ('url 获取失败')
+        print ('url 名字: {}'.format(url_name))
+        print ('当前 url 池: {}'.format(url_name))
+        raise ValueError('Error')
+    else:
+        return url
+
+AUTHORIZE_URL = get_url('AUTHORIZE_URL')
+TOKEN_URL = get_url('TOKEN_URL')
+MERCURY_URL = get_url('MERCURY_URL')
+UQER_AUTH_URL = get_url('UQER_AUTH_URL')
+NOTEBOOK_URL = get_url('NOTEBOOK_URL') 
+NOTEBOOK_DELETE = get_url('NOTEBOOK_DELETE') 
+DATA_URL = get_url('DATA_URL') 
+DOWN_NOTEBOOK_URL = get_url('DOWN_NOTEBOOK_URL') 
+SDK_URL = get_url('SDK_URL')
+Live_Trading_URL = get_url('Live_Trading_URL') 
+Live_Order_URL = get_url('Live_Order_URL') 
+Live_Position_URL = get_url('Live_Position_URL') 
+Live_Curve_URL = get_url('Live_Curve_URL') 
+Create_Factor = get_url('Create_Factor') 
+Upload_FactorData = get_url('Upload_FactorData') 
+Get_Factor = get_url('Get_Factor') 
+
+
+### python 3.x unicode
+try:
+    unicode
+except:
+    unicode = str
+
+
