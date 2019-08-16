@@ -8,9 +8,29 @@ import os
 import re
 import numpy as np
 from functools import reduce
-from tools.compute import computeCorrelation
+#from tools.compute import computeCorrelation
 import warnings; warnings.simplefilter('ignore')
 
+def computeCorrelation(x,y):
+    """
+    计算功能函数，计算简单线性回归相关系数的函数
+    :param x,y: series，计算相关系数的两个序列
+    :return: r：float，相关系数
+    """
+    import math
+    xBar = np.mean(x)
+    yBar = np.mean(y)
+    SSR = 0.0
+    varX = 0.0
+    varY = 0.0
+    for i in range(0,len(x)):
+        diffXXbar = x[i] - xBar
+        difYYbar = y[i] - yBar
+        SSR += (diffXXbar * difYYbar)
+        varX += diffXXbar**2
+        varY += difYYbar**2
+    SST = math.sqrt(varX * varY)
+    return SSR/SST
 class get():
     """
     输入multi_index_dataframe，index是date和code，几个获取日期或者代码的方法
@@ -52,6 +72,7 @@ def csv_to_df(i):
     df['Date'] = pd.to_datetime(df['Date'])
 
     df.set_index(['Date','Symbol'], inplace=True)
+    #print(df)
 
     return df
 
@@ -66,38 +87,44 @@ def cal_Return(df):
     df = df.dropna()
 
     return df
-
-"""""""""""""""""""""
-计算不同因子的函数
-"""""""""""""""""""""
-
-
+'''
 def cal_CR(df):
     """
-    计算因子CR，在df中加入CR因子值Column
+    计算因子值CR相关的column
+    :param df:
+    :return:
     """
     df['CR'] = (df['Close'] - df['Open']) / (df['High'] - df['Low']) * np.sqrt(df['Volume'])
 
     return df
+'''
+def MA(c,n):
+    z = []
+    for i in range(0, len(c), 1):
+        if i<n :
+            b=0
+        else :
+            b=i-n+1
+                
+        temp=c[b:i+1]
+        av=np.mean(temp)
+        z.append(av)
+    return z
 
-def cal_VV(df):
+def cal_CR(df):
     """
-    计算因子VV，在df中加入VV因子值Column
+    计算因子值CR相关的column
+    :param df:
+    :return:
     """
-    df['VV'] = np.sqrt(df['Volume'])
+    close=df['Close'].values
+    #print(len(close))
+    mavalue=MA(close,5)
+    #print(mavalue)
+    df['CR'] = mavalue
+
     return df
 
-def cal_DRV(df):
-    """
-    计算因子DRV，在df中加入DRV因子值Column
-    """
-    df['DRV'] = (df['Close'] - df['Low']) / (df['High'] - df['Low']) * np.sqrt(df['Volume'])
-    return df
-
-
-"""""""""""""""""""""
-计算不同因子的函数
-"""""""""""""""""""""
 
 def concat_func(df_list):
     """
@@ -119,30 +146,27 @@ def handle_data_CR_factor(path):
     """
     futures_df_list = []
     pathDir = os.listdir(path)
+    
     for i in pathDir:
         df = csv_to_df(i)
         df = cal_Return(df)
         df = cal_CR(df)
-        df = cal_VV(df)
-        df = cal_DRV(df)
         df = df.dropna()
         futures_df_list.append(df)
 
     return concat_func(futures_df_list)
 
-def handle_data_for_JQ(df,factor):
+def hadle_data_for_JQ(df,factor):
     """
     把因子数据转换成可以在JQ中进行回测的格式；
     因子IC检测部分用不到此函数；
     :param df:
-    :param factor: str，因子名称
+    :param factor:
     :return:
     """
     df = df.reset_index()
     df = df[['Date','Symbol',factor]]
     df = df.pivot(index='Date', columns='Symbol', values=factor)
-    # 因为聚宽模板里面要求列名都是大写，需要这样操作转化一下
-    df = df.rename(columns=str.upper)
     return df
 
 def indicator_CS_IC(df, factor, beginDate, endDate):
@@ -167,6 +191,7 @@ def indicator_CS_IC(df, factor, beginDate, endDate):
     # 循环计算IC
     for date in get.get_dates_list(df):
         factor_sr = (df.loc[date])[factor]
+        #print(str(factor_sr)+'|'+str(date))
         NextReturn_sr = (df.loc[date])['NextReturn']
         value = factor_sr.corr(NextReturn_sr,method='spearman')
         CS_IC_date_list.append(date)
@@ -174,6 +199,7 @@ def indicator_CS_IC(df, factor, beginDate, endDate):
 
     CS_IC_sr = pd.Series(CS_IC_value_list, index=CS_IC_date_list)
     CS_IC_sr.sort_index(inplace=True)
+    
 
     return CS_IC_sr
 
@@ -181,16 +207,11 @@ def indicator_CS_IC(df, factor, beginDate, endDate):
 if __name__ == '__main__':
 
     df = handle_data_CR_factor('D:/PythonProject/JD_FactorFactory01/DataDownload/day')
-    test = indicator_CS_IC(df, 'CR', beginDate='20180105', endDate='20180629')
+    test = indicator_CS_IC(df, 'CR', beginDate='20100105', endDate='20181227')
+    
+    # test.plot(kind='line')
 
 
-    # 数据导出部分
-    # 导出给JQ平台做因子排序用的csv文件，和因子检测无关
-
-    # df_CR = handle_data_for_JQ(df,'CR')
-    # df_VV = handle_data_for_JQ(df,'VV')
-    # df_DRV = handle_data_for_JQ(df,'DRV')
+    # 数据导出，导出给JQ平台做因子排序用的csv文件，和因子检测无关
+    # df_CR = hadle_data_for_JQ(df,'CR')
     # df_CR.to_csv('D:/PythonProject/JD_FactorFactory01/DataDownload/factor_for_JQ/df_CR.csv')
-    # df_VV.to_csv('D:/PythonProject/JD_FactorFactory01/DataDownload/factor_for_JQ/df_VV.csv')
-    # df_DRV.to_csv('D:/PythonProject/JD_FactorFactory01/DataDownload/factor_for_JQ/df_DRV.csv')
-
